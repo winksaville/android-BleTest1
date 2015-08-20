@@ -10,6 +10,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Process;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.util.Log;
@@ -30,6 +31,7 @@ public class MainActivity extends Activity {
     private BluetoothManager mBtManager = null;
     private BluetoothAdapter mBtAdapter = null;
     private BluetoothLeScanner mBtScanner = null;
+    private BleSm1 mSm1 = null;
 
     private void startScan() {
         mBtScanner = mBtAdapter.getBluetoothLeScanner();
@@ -118,7 +120,10 @@ public class MainActivity extends Activity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.i(TAG, "onCreate X:w");
+        Log.i(TAG, "onCreate X:w id=" + Thread.currentThread().getId() + " tid=" + Process.myTid());
+        mSm1 = BleSm1.makeBleSm1("mSm1");
+        mSm1.sendMessage(BleSm1.ON_CREATE);
+
         mHasFeatureBle = getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE);
         Log.i(TAG, "onCreate: mHasFeatureBle=" + mHasFeatureBle);
         if (mHasFeatureBle) {
@@ -225,6 +230,8 @@ public class MainActivity extends Activity {
             Log.i(TAG, "onPause: stopScan");
             mBtScanner.stopScan(mMyScanCallBack);
         }
+        Log.i(TAG, "mSm1: dump");
+        Log.i(TAG, mSm1.toString());
         Log.i(TAG, "onPause:-");
     }
 
