@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanResult;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -13,16 +15,100 @@ import android.view.MenuItem;
 import android.util.Log;
 import android.widget.Toast;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class MainActivity extends Activity {
     private final static String TAG = "BleTest1";
 
     private final static int REQUEST_ENABLE_BT = 1;
+    private final static int REQUEST_PERMISSIONS = 2;
 
     private boolean mHasFeatureBle = false;
     private boolean mBtLeSupported = false;
+    private boolean mBtAllowed = false;
     private BluetoothManager mBtManager = null;
     private BluetoothAdapter mBtAdapter = null;
     private BluetoothLeScanner mBtScanner = null;
+
+    private void startScan() {
+        mBtScanner = mBtAdapter.getBluetoothLeScanner();
+        mMyScanCallBack = new MyScanCallback();
+        mBtScanner.startScan(mMyScanCallBack);
+    }
+
+    private void getPermissions() {
+        Log.i(TAG, "getPermissions:+");
+
+        ArrayList<String> permissionsNeeded = new ArrayList<String>();
+        if (checkSelfPermission("android.permission.BLUETOOTH") ==
+                PackageManager.PERMISSION_DENIED) {
+            permissionsNeeded.add("android.permission.BLUETOOTH");
+        }
+        if (checkSelfPermission("android.permission.BLUETOOTH_ADMIN") ==
+                PackageManager.PERMISSION_DENIED) {
+            permissionsNeeded.add("android.permission.BLUETOOTH_ADMIN");
+        }
+        if (checkSelfPermission("android.permission.ACCESS_COARSE_LOCATION") ==
+                PackageManager.PERMISSION_DENIED) {
+            permissionsNeeded.add("android.permission.ACCESS_COARSE_LOCATION");
+        }
+        if (checkSelfPermission("android.permission.ACCESS_FINE_LOCATION") ==
+                PackageManager.PERMISSION_DENIED) {
+            permissionsNeeded.add("android.permission.ACCESS_FINE_LOCATION");
+        }
+        if (permissionsNeeded.size() > 0) {
+            Log.i(TAG, "getPermissions: needed=" + permissionsNeeded);
+            mBtAllowed = false;
+            String[] permissionsNeededStringArray =
+                    permissionsNeeded.toArray(new String[permissionsNeeded.size()]);
+            requestPermissions(permissionsNeededStringArray, REQUEST_PERMISSIONS);
+        } else {
+            mBtAllowed = true;
+        }
+        Log.i(TAG, "getPermissions:-");
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                                           int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        Log.i(TAG, "onRequestPermissionsResult:+");
+        if (requestCode == REQUEST_PERMISSIONS) {
+            if (permissions.length == grantResults.length) {
+                int grantedCount = 0;
+                for (int i = 0; i < grantResults.length; i++) {
+                    Log.i(TAG, String.format(
+                            "onRequestPermissionsResult: %d:permission=%s grantResults=%d",
+                            i, permissions[i], grantResults[i]));
+                    if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
+                        grantedCount += 1;
+                    }
+                }
+                if (grantedCount != permissions.length) {
+                    for (int i = 0; i < grantResults.length; i++) {
+                        if (grantResults[i] == PackageManager.PERMISSION_DENIED) {
+                            Log.i(TAG, String.format(
+                                    "onRequestPermissionsResult: permission:%s%sgranted",
+                                    permissions[i],
+                                    grantResults[i] == PackageManager.PERMISSION_DENIED ?
+                                            " not " : " "));
+                        }
+                    }
+                    mBtAllowed = false;
+                } else {
+                    mBtAllowed = true;
+                    startScan();
+                }
+            } else {
+                Log.wtf(TAG, String.format("onRequestPermissionsResult: permissions.length:%d !=" +
+                        "grantResults.length:%d", permissions.length, grantResults.length));
+            }
+        } else {
+            Log.i(TAG, "onRequestPermissionsResult: ignore unknown requestCode=" + requestCode);
+        }
+        Log.i(TAG, "onRequestPermissionsResult:-");
+    }
 
     /**
      * OnCreate: Activity is created.
@@ -40,9 +126,11 @@ public class MainActivity extends Activity {
             mBtLeSupported = true;
             mBtManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
             mBtAdapter = mBtManager.getAdapter();
+            getPermissions();
         } else {
             Log.i(TAG, "onCreate: has Bluetooth LE");
             mBtLeSupported = false;
+            mBtAllowed = false;
             mBtManager = null;
             mBtAdapter = null;
         }
@@ -52,7 +140,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        Log.i(TAG, "onResume");
+        Log.i(TAG, "onResume:+");
         if (mBtLeSupported) {
             if (!mBtAdapter.isEnabled()) {
                 Log.i(TAG, "onResume: bt is NOT enabled, request that it be enabled.");
@@ -60,10 +148,46 @@ public class MainActivity extends Activity {
                 startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
             } else {
                 Log.i(TAG, "onResume: bt is enabled");
-                mBtScanner = mBtAdapter.getBluetoothLeScanner();
+                if (mBtAllowed) {
+                    startScan();
+                } else {
+                    Log.i(TAG, "onResume: BT is not allowed, at least not yet");
+                }
             }
         } else {
             Log.i(TAG, "onResume: mBtLe is not supported");
+        }
+        Log.i(TAG, "onResume:-");
+    }
+
+    private MyScanCallback mMyScanCallBack;
+    class MyScanCallback extends ScanCallback {
+        public MyScanCallback() {
+            super();
+        }
+
+        @Override
+        public void onScanResult(int callbackType, ScanResult result) {
+            super.onScanResult(callbackType, result);
+            printScanResult("onScanResult", result);
+        }
+
+        private void printScanResult(String onScanResult, ScanResult result) {
+            Log.i(TAG, onScanResult + ": result=" + result.toString());
+        }
+
+        @Override
+        public void onBatchScanResults(List<ScanResult> results) {
+            super.onBatchScanResults(results);
+            for (ScanResult result : results) {
+                printScanResult("onBatchScanResults", result);
+            }
+        }
+
+        @Override
+        public void onScanFailed(int errorCode) {
+            super.onScanFailed(errorCode);
+            Log.i(TAG, "onScanFailed: errorCode=0x" + Integer.toHexString(errorCode));
         }
     }
 
@@ -96,7 +220,12 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        Log.i(TAG, "onPause");
+        Log.i(TAG, "onPause:+");
+        if (mMyScanCallBack != null && mBtScanner != null) {
+            Log.i(TAG, "onPause: stopScan");
+            mBtScanner.stopScan(mMyScanCallBack);
+        }
+        Log.i(TAG, "onPause:-");
     }
 
     @Override
