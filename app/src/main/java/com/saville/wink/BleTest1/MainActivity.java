@@ -10,7 +10,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
-import android.os.Process;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.util.Log;
@@ -39,8 +38,8 @@ public class MainActivity extends Activity {
         mBtScanner.startScan(mMyScanCallBack);
     }
 
-    private void getPermissions() {
-        Log.i(TAG, "getPermissions:+");
+    private void checkPermissions() {
+        Log.i(TAG, "checkPermissions:+");
 
         ArrayList<String> permissionsNeeded = new ArrayList<String>();
         if (checkSelfPermission("android.permission.BLUETOOTH") ==
@@ -60,7 +59,7 @@ public class MainActivity extends Activity {
             permissionsNeeded.add("android.permission.ACCESS_FINE_LOCATION");
         }
         if (permissionsNeeded.size() > 0) {
-            Log.i(TAG, "getPermissions: needed=" + permissionsNeeded);
+            Log.i(TAG, "checkPermissions: needed=" + permissionsNeeded);
             mBtAllowed = false;
             String[] permissionsNeededStringArray =
                     permissionsNeeded.toArray(new String[permissionsNeeded.size()]);
@@ -68,7 +67,7 @@ public class MainActivity extends Activity {
         } else {
             mBtAllowed = true;
         }
-        Log.i(TAG, "getPermissions:-");
+        Log.i(TAG, "checkPermissions:-");
     }
 
     @Override
@@ -98,6 +97,7 @@ public class MainActivity extends Activity {
                         }
                     }
                     mBtAllowed = false;
+                    showFatalToast("Permissions needed were denied");
                 } else {
                     mBtAllowed = true;
                     startScan();
@@ -112,6 +112,12 @@ public class MainActivity extends Activity {
         Log.i(TAG, "onRequestPermissionsResult:-");
     }
 
+    private void showFatalToast(String text) {
+        Toast toast = Toast.makeText(this, text, Toast.LENGTH_LONG);
+        toast.show();
+        finish();
+    }
+
     /**
      * OnCreate: Activity is created.
      *
@@ -120,7 +126,7 @@ public class MainActivity extends Activity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.i(TAG, "onCreate X:w id=" + Thread.currentThread().getId() + " tid=" + Process.myTid());
+        Log.i(TAG, "onCreate:+");
         mSm1 = BleSm1.makeBleSm1("mSm1");
         mSm1.sendMessage(BleSm1.ON_CREATE);
 
@@ -131,15 +137,12 @@ public class MainActivity extends Activity {
             mBtLeSupported = true;
             mBtManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
             mBtAdapter = mBtManager.getAdapter();
-            getPermissions();
         } else {
-            Log.i(TAG, "onCreate: has Bluetooth LE");
-            mBtLeSupported = false;
-            mBtAllowed = false;
-            mBtManager = null;
-            mBtAdapter = null;
+            Log.i(TAG, "onCreate: NO Bluetooth LE");
+            showFatalToast("Device has no Bluetooth LE/smart feature");
         }
         setContentView(R.layout.activity_main);
+        Log.i(TAG, "onCreate:-");
     }
 
     @Override
@@ -151,8 +154,11 @@ public class MainActivity extends Activity {
                 Log.i(TAG, "onResume: bt is NOT enabled, request that it be enabled.");
                 Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
                 startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+            } else if (!mBtAllowed) {
+                Log.i(TAG, "onResume: !mBtAllowed so checkPermissions");
+                checkPermissions();
             } else {
-                Log.i(TAG, "onResume: bt is enabled");
+                Log.i(TAG, "onResume: bt is enabled and this app has appropriate permissions");
                 if (mBtAllowed) {
                     startScan();
                 } else {
@@ -174,18 +180,18 @@ public class MainActivity extends Activity {
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
             super.onScanResult(callbackType, result);
-            printScanResult("onScanResult", result);
+            printScanResult("onScanResult", callbackType, result);
         }
 
-        private void printScanResult(String onScanResult, ScanResult result) {
-            Log.i(TAG, onScanResult + ": result=" + result.toString());
+        private void printScanResult(String onScanResult, int callbackType, ScanResult result) {
+            Log.i(TAG, onScanResult + " callbackType=" + callbackType + ": result=" + result.toString());
         }
 
         @Override
         public void onBatchScanResults(List<ScanResult> results) {
             super.onBatchScanResults(results);
             for (ScanResult result : results) {
-                printScanResult("onBatchScanResults", result);
+                printScanResult("onBatchScanResults", -1 /*unused*/, result);
             }
         }
 
@@ -228,6 +234,7 @@ public class MainActivity extends Activity {
         Log.i(TAG, "onPause:+");
         if (mMyScanCallBack != null && mBtScanner != null) {
             Log.i(TAG, "onPause: stopScan");
+            // BUG: For somereason this didn't stop the scanning!!
             mBtScanner.stopScan(mMyScanCallBack);
         }
         Log.i(TAG, "mSm1: dump");
