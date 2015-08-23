@@ -1498,7 +1498,7 @@ public class StateMachine {
      * @return the string for msg.what
      */
     protected String getWhatToString(int what) {
-        return null;
+        return Integer.toString(what) + "(0x" + Integer.toHexString(what) + ")";
     }
 
     /**
