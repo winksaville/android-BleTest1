@@ -10,6 +10,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Message;
+import android.os.Messenger;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.util.Log;
@@ -31,6 +33,7 @@ public class MainActivity extends Activity {
     private BluetoothAdapter mBtAdapter = null;
     private BluetoothLeScanner mBtScanner = null;
     private BleSm1 mSm1 = null;
+    private BleScanSm mBleScanSm = null;
 
     private void startScan() {
         mBtScanner = mBtAdapter.getBluetoothLeScanner();
@@ -41,7 +44,7 @@ public class MainActivity extends Activity {
     private void checkPermissions() {
         Log.i(TAG, "checkPermissions:+");
 
-        ArrayList<String> permissionsNeeded = new ArrayList<String>();
+        ArrayList<String> permissionsNeeded = new ArrayList<>();
         if (checkSelfPermission("android.permission.BLUETOOTH") ==
                 PackageManager.PERMISSION_DENIED) {
             permissionsNeeded.add("android.permission.BLUETOOTH");
@@ -127,8 +130,9 @@ public class MainActivity extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Log.i(TAG, "onCreate:+");
+        mBleScanSm = BleScanSm.makeBleSm("mBleScanSm");
         mSm1 = BleSm1.makeBleSm1("mSm1");
-        mSm1.sendMessage(BleSm1.ON_CREATE);
+        mSm1.sendMessage(BleSm1.ON_CREATE, mBleScanSm);
 
         mHasFeatureBle = getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE);
         Log.i(TAG, "onCreate: mHasFeatureBle=" + mHasFeatureBle);
@@ -239,6 +243,8 @@ public class MainActivity extends Activity {
         }
         Log.i(TAG, "mSm1: dump");
         Log.i(TAG, mSm1.toString());
+        Log.i(TAG, "mBleScanSm: dump");
+        Log.i(TAG, mBleScanSm.toString());
         Log.i(TAG, "onPause:-");
     }
 
